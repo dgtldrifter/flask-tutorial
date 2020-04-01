@@ -97,17 +97,18 @@ def user(username):
     return render_template('profiles/user.html', user=user, posts=posts)
 
 
+# Updates the user profile/delivers the edit profile page
 @app.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
-    form = EditProfileForm()
-    if form.validate_on_submit():
+    form = EditProfileForm(current_user.username)
+    if form.validate_on_submit():  # if the submit button gets clicked on the form
         current_user.username = form.username.data
         current_user.about_me = form.about_me.data
         db.session.commit()
         flash('Your changes have been saved')
         return redirect(url_for('edit_profile'))
-    elif request.method == 'GET':
+    elif request.method == 'GET':  # if the request that is being made is using GET
         form.username.data = current_user.username
         form.about_me.data = current_user.about_me
     return render_template('profiles/edit_profile.html', title="Edit Profile", form=form)
