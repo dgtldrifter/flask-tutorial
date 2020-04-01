@@ -13,7 +13,7 @@ migrate = Migrate(app, db)
 login = LoginManager(app)
 login.login_view = 'login'
 
-from routes import routes
+from routes import routes, errors
 from models.models import Post, User
 
 
