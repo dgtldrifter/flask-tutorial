@@ -5,9 +5,10 @@ from flask_login import current_user, login_user, logout_user, login_required
 from werkzeug.urls import url_parse
 
 from app import app, db
-from models.models import User
+from models.models import User, Post
 from forms.loginForm import LoginForm, RegistrationForm
 from forms.profileForm import EditProfileForm
+from forms.postForm import PostForm
 
 
 @app.before_request
@@ -17,21 +18,27 @@ def before_request():
         db.session.commit()
 
 
-@app.route('/')
-@app.route('/index')
+@app.route('/', methods=['GET', 'POST'])
+@app.route('/index', methods=['GET', 'POST'])
 @login_required
 def index():
-    posts = [
-        {
-            'author': {'username': 'John'},
-            'body': 'This is a text string...'
-        },
-        {
-            'author': {'username': "Susan"},
-            'body': 'This is another text string...'
-        }
-    ]
-    return render_template('index.html', title="Home", posts=posts)
+    form = PostForm()
+
+    if form.validate_on_submit():
+        post = Post(body=form.post.data, author=current_user)
+        db.session.add(post)
+        db.session.commit()
+        flash('Post Created!')
+        return redirect(url_for('index'))
+    posts = current_user.followed_posts().all()
+    return render_template('index.html', title="Home", posts=posts, form=form)
+
+
+@app.route('/explore')
+@login_required
+def explore():
+    posts = Post.query.order_by(Post.timestamp.desc()).all()
+    return render_template('index.html', title='Explore', posts=posts)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -39,6 +46,7 @@ def login():
     # checks for if a user already logged in
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+
     form = LoginForm()
 
     # Checks if the user clicked submit
@@ -62,11 +70,13 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    # checks if a user is already logged in, then redirects to index if True
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
     form = RegistrationForm()
 
+    # script that gets triggered when submit is selected, pushes registration information to database
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data)
         user.set_password(form.password.data)
@@ -117,14 +127,15 @@ def edit_profile():
 @app.route('/follow/<username>')
 @login_required
 def follow(username):
-    user = User.query.filter_by(username=username).first()
-    if user is None:
+    user = User.query.filter_by(username=username).first()  # gets the user one is trying to follow
+    if user is None:  # checks if the user exists
         flash('user {} not found.'.format(username))
         return redirect(url_for('index'))
-    if user == current_user:
+    if user == current_user:  # checks if the logged in user is attempting to follow themselves
         flash('You cannot follow youself!')
         return redirect(url_for(user), username=username)
 
+    # push follow to db
     current_user.follow(user)
     db.session.commit()
     flash('You are following {}!'.format(username))
